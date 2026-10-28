@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Nimbus — Live Weather, Air Quality &amp; 7-Day Forecast</title>
+<meta name="description" content="Nimbus is a fast, free weather dashboard: current conditions, 24-hour outlook, 7-day forecast, air quality index and UV for any city on earth. Live data from Open-Meteo, no sign-up." />
+<meta name="theme-color" content="#050b1a" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#f2f9ff" media="(prefers-color-scheme: light)" />
+<meta name="color-scheme" content="dark light" />
+
+<!-- Open Graph / social -->
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Nimbus — Live Weather, Air Quality &amp; 7-Day Forecast" />
+<meta property="og:description" content="Current conditions, hourly outlook, 7-day forecast and air quality for any city. Live data, no sign-up." />
+<meta name="twitter:card" content="summary_large_image" />
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230a1730'/%3E%3Ccircle cx='24' cy='24' r='9' fill='%2300e5ff'/%3E%3Cpath d='M16 44h26a8 8 0 0 0 0-16 11 11 0 0 0-20-3 9 9 0 0 0-6 19z' fill='%2338bdf8'/%3E%3C/svg%3E" />
+
+<link rel="preconnect" href="https://api.open-meteo.com" crossorigin />
+<link rel="preconnect" href="https://geocoding-api.open-meteo.com" crossorigin />
+<link rel="preconnect" href="https://air-quality-api.open-meteo.com" crossorigin />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<div class="aurora" aria-hidden="true">
+  <span class="aurora__blob aurora__blob--one"></span>
+  <span class="aurora__blob aurora__blob--two"></span>
+  <span class="aurora__blob aurora__blob--three"></span>
+</div>
+
+<!-- ============================== HEADER ============================== -->
+<header class="topbar">
+  <div class="wrap topbar__inner">
+    <a class="brand" href="./" aria-label="Nimbus home">
+      <span class="brand__mark" aria-hidden="true">
+        <svg viewBox="0 0 32 32" width="20" height="20" fill="none" aria-hidden="true">
+          <circle cx="12" cy="11" r="4.6" fill="currentColor" opacity=".95" />
+          <path d="M7.5 24h13a4.2 4.2 0 0 0 .2-8.4A6.4 6.4 0 0 0 9.2 14 4.7 4.7 0 0 0 7.5 24Z"
+                fill="currentColor" opacity=".55" />
+        </svg>
+      </span>
+      <span class="brand__text">Nimbus</span>
+      <span class="brand__tag">Weather</span>
+    </a>
+
+    <div class="topbar__actions">
+      <button class="pill-btn" id="unitToggle" type="button" aria-label="Switch temperature unit to Fahrenheit">
+        <span id="unitLabel">°C</span>
+      </button>
+      <button class="icon-btn" id="themeToggle" type="button" aria-label="Switch to light theme">
+        <svg class="icon-sun" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+             stroke-width="1.9" stroke-linecap="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4.2" />
+          <path d="M12 2.4v2.2M12 19.4v2.2M4.2 12H2M22 12h-2.2M5.9 5.9 4.3 4.3M19.7 19.7l-1.6-1.6M18.1 5.9l1.6-1.6M4.3 19.7l1.6-1.6" />
+        </svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+             stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M20.5 13.4A8.6 8.6 0 1 1 10.6 3.5a6.9 6.9 0 0 0 9.9 9.9Z" />
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main id="main" class="wrap">
+
+  <!-- ============================== SEARCH ============================== -->
+  <section class="search-hero" aria-labelledby="heroTitle">
+    <h1 class="search-hero__title" id="heroTitle">
+      Weather that tells you <span class="grad">what to wear</span>
+    </h1>
+    <p class="search-hero__sub">
+      Live conditions, 24-hour and 7-day forecasts, air quality and UV for any city on earth.
+    </p>
+
+    <form class="search" id="searchForm" role="search" autocomplete="off" novalidate>
+      <div class="search__field">
+        <svg class="search__icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" aria-hidden="true">
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.6-3.6" />
+        </svg>
+        <input
+          id="searchInput"
+          class="search__input"
+          type="text"
+          name="city"
+          placeholder="Search a city — e.g. Mumbai, London, Tokyo"
+          aria-label="City name"
+          aria-autocomplete="list"
+          aria-controls="suggestions"
+          aria-expanded="false"
+          role="combobox"
+          maxlength="80"
+        />
+        <button class="search__clear" id="clearBtn" type="button" aria-label="Clear search" hidden>&times;</button>
+      </div>
+      <button class="btn btn--primary" id="searchBtn" type="submit">Search</button>
+      <button class="btn btn--ghost" id="geoBtn" type="button">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 21s7-5.2 7-11a7 7 0 1 0-14 0c0 5.8 7 11 7 11Z" />
+          <circle cx="12" cy="10" r="2.6" />
+        </svg>
+        My location
+      </button>
+
+      <ul class="suggestions" id="suggestions" role="listbox" aria-label="City suggestions" hidden></ul>
+    </form>
+
+    <!-- Saved cities -->
+    <div class="saved" id="savedWrap" hidden>
+      <span class="saved__label">Saved</span>
+      <div class="saved__chips" id="savedChips"></div>
+    </div>
+
+    <!-- Status / errors -->
+    <div class="status" id="statusBar" role="status" aria-live="polite" hidden>
+      <span class="status__spinner" id="statusSpinner" aria-hidden="true"></span>
+      <span class="status__text" id="statusText"></span>
+      <button class="status__retry" id="retryBtn" type="button" hidden>Retry</button>
+    </div>
+  </section>
+
+  <!-- ============================== SKELETON ============================== -->
+  <div class="skeleton" id="skeleton" hidden aria-hidden="true">
+    <div class="sk-card sk-card--hero"></div>
+    <div class="sk-row">
+      <div class="sk-card"></div>
+      <div class="sk-card"></div>
+    </div>
+    <div class="sk-card sk-card--tall"></div>
+  </div>
+
+  <!-- ============================== DASHBOARD ============================== -->
+  <div id="dashboard" hidden>
+
+    <!-- Current conditions -->
+    <section class="card current" id="currentCard" aria-labelledby="placeName">
+      <div class="current__head">
+        <div class="current__place">
+          <h2 class="current__name" id="placeName">—</h2>
+          <p class="current__sub" id="placeSub">—</p>
+          <p class="current__coords" id="placeCoords"></p>
+        </div>
+        <div class="current__tools">
+          <span class="updated" id="updatedAgo">just now</span>
+          <button class="icon-btn icon-btn--sm" id="saveBtn" type="button" aria-label="Save this city" aria-pressed="false">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3.6l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8L3.5 9.8l5.9-.9L12 3.6Z" />
+            </svg>
+          </button>
+          <button class="icon-btn icon-btn--sm" id="refreshBtn" type="button" aria-label="Refresh weather">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M20.5 12a8.5 8.5 0 1 1-2.6-6.1" />
+              <path d="M20.5 4.2v5.2h-5.2" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <div class="current__hero">
+        <div class="current__icon" id="currentIcon" aria-hidden="true"></div>
+        <div class="current__tempwrap">
+          <div class="current__temp">
+            <span id="currentTemp">—</span><span class="current__deg" id="currentUnitLabel">°C</span>
+          </div>
+          <p class="current__condition" id="currentCondition">—</p>
+          <p class="current__feels">Feels like <strong id="feelsLike">—</strong> · H <strong id="hiTemp">—</strong> L <strong id="loTemp">—</strong></p>
+        </div>
+      </div>
+
+      <ul class="quickstats" aria-label="At a glance">
+        <li class="quickstat">
+          <span class="quickstat__label">Humidity</span>
+          <span class="quickstat__value" id="qHumidity">—</span>
+        </li>
+        <li class="quickstat">
+          <span class="quickstat__label">Wind</span>
+          <span class="quickstat__value" id="qWind">—</span>
+        </li>
+        <li class="quickstat">
+          <span class="quickstat__label">Rain chance</span>
+          <span class="quickstat__value" id="qRain">—</span>
+        </li>
+        <li class="quickstat">
+          <span class="quickstat__label">Air quality</span>
+          <span class="quickstat__value" id="qAqi">—</span>
+        </li>
+      </ul>
+    </section>
+
+    <!-- Air quality + Sun -->
+    <div class="split">
+      <section class="card aqi" id="aqiCard" aria-labelledby="aqiHeading">
+        <header class="card__head">
+          <h3 class="card__title" id="aqiHeading">Air quality</h3>
+          <span class="badge" id="aqiBadge">—</span>
+        </header>
+        <div class="aqi__main">
+          <div class="aqi__score">
+            <span class="aqi__value" id="aqiValue">—</span>
+            <span class="aqi__scale">US AQI</span>
+          </div>
+          <div class="aqi__meta">
+            <p class="aqi__label" id="aqiLabel">—</p>
+            <p class="aqi__advice" id="aqiAdvice">—</p>
+          </div>
+        </div>
+        <div class="aqi__track" aria-hidden="true">
+          <span class="aqi__fill" id="aqiFill"></span>
+          <span class="aqi__needle" id="aqiNeedle"></span>
+        </div>
+        <ul class="pollutants" id="pollutants"></ul>
+      </section>
+
+      <section class="card sun" aria-labelledby="sunHeading">
+        <header class="card__head">
+          <h3 class="card__title" id="sunHeading">Sun &amp; UV</h3>
+          <span class="badge" id="uvBadge">—</span>
+        </header>
+        <div class="sun__arc">
+          <svg viewBox="0 0 200 108" width="100%" height="108" fill="none" aria-hidden="true">
+            <path d="M8 100a92 92 0 0 1 184 0" stroke="var(--line)" stroke-width="3" stroke-linecap="round" />
+            <path id="sunPath" d="M8 100a92 92 0 0 1 184 0" stroke="url(#sunGrad)" stroke-width="3"
+                  stroke-linecap="round" stroke-dasharray="0 1000" />
+            <defs>
+              <linearGradient id="sunGrad" x1="0" y1="0" x2="200" y2="0" gradientUnits="userSpaceOnUse">
+                <stop offset="0" stop-color="#22c55e" />
+                <stop offset=".5" stop-color="#38bdf8" />
+                <stop offset="1" stop-color="#00e5ff" />
+              </linearGradient>
+            </defs>
+            <circle id="sunDot" cx="8" cy="100" r="5.5" fill="#00e5ff" />
+          </svg>
+        </div>
+        <div class="sun__times">
+          <div>
+            <span class="sun__label">Sunrise</span>
+            <span class="sun__value" id="sunriseTime">—</span>
+          </div>
+          <div>
+            <span class="sun__label">Daylight</span>
+            <span class="sun__value" id="daylightLen">—</span>
+          </div>
+          <div>
+            <span class="sun__label">Sunset</span>
+            <span class="sun__value" id="sunsetTime">—</span>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- Hourly -->
+    <section class="card hourly" aria-labelledby="hourlyHeading">
+      <header class="card__head">
+        <h3 class="card__title" id="hourlyHeading">Next 24 hours</h3>
+        <span class="badge badge--soft" id="hourlyBadge">temperature</span>
+      </header>
+      <div class="hourly__chart" id="hourlyChart" aria-hidden="true"></div>
+      <div class="hourly__strip" id="hourlyStrip" tabindex="0" aria-label="Hourly forecast, scroll horizontally"></div>
+    </section>
+
+    <!-- Daily -->
+    <section class="card daily" aria-labelledby="dailyHeading">
+      <header class="card__head">
+        <h3 class="card__title" id="dailyHeading">7-day forecast</h3>
+        <span class="badge badge--soft">high / low</span>
+      </header>
+      <ul class="daily__list" id="dailyList"></ul>
+    </section>
+
+    <!-- Details -->
+    <section class="card details" aria-labelledby="detailsHeading">
+      <header class="card__head">
+        <h3 class="card__title" id="detailsHeading">Conditions in detail</h3>
+      </header>
+      <ul class="details__grid" id="detailsGrid"></ul>
+    </section>
+
+    <p class="footnote">
+      Data refreshes automatically every 10 minutes. Times shown in the location's own timezone.
+    </p>
+  </div>
+</main>
+
+<!-- ============================== FOOTER ============================== -->
+<footer class="footer">
+  <div class="wrap footer__inner">
+    <p class="footer__brand">
+      <span class="brand__mark brand__mark--sm" aria-hidden="true"></span>
+      Nimbus — open weather for everyone
+    </p>
+    <p class="footer__meta">
+      Weather, forecast &amp; air quality by
+      <a href="https://open-meteo.com/" target="_blank" rel="noopener noreferrer">Open-Meteo</a>
+      · Built with vanilla HTML, CSS &amp; JavaScript · <span id="year">2026</span>
+    </p>
+  </div>
+</footer>
+
+<script src="script.js" defer></script>
+</body>
+</html>
