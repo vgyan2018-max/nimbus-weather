@@ -1566,3 +1566,286 @@ a:hover {
     break-inside: avoid;
   }
 }
+
+/* ==========================================================================
+   19. Live data sources (multi-provider cross-check)
+   ========================================================================== */
+.sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1.1rem;
+  padding-top: 0.95rem;
+  border-top: 1px dashed var(--line);
+}
+
+.source {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.42rem 0.65rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-hi) 70%, transparent);
+  font-size: 0.78rem;
+  line-height: 1.2;
+}
+
+@supports not (background: color-mix(in srgb, red 50%, blue)) {
+  .source { background: var(--panel-hi); }
+}
+
+.source__dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--dim);
+}
+
+.source--ok .source__dot {
+  background: var(--green);
+  box-shadow: 0 0 9px rgba(34, 197, 94, 0.85);
+}
+
+.source--warn .source__dot {
+  background: var(--warn);
+  box-shadow: 0 0 9px rgba(245, 158, 11, 0.8);
+}
+
+.source--off .source__dot {
+  background: var(--dim);
+  opacity: 0.6;
+}
+
+.source__name {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.source__value {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.source__delta {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--dim);
+}
+
+.source--ok .source__delta { color: var(--green-2); }
+.source--warn .source__delta { color: var(--warn); }
+
+.source--muted {
+  border-style: dashed;
+  color: var(--dim);
+  font-weight: 600;
+}
+
+/* ==========================================================================
+   20. 15-minute rain nowcast
+   ========================================================================== */
+.nowcast__headline {
+  font-size: clamp(1.05rem, 2.8vw, 1.3rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+
+.nowcast__headline .accent { color: var(--neon); }
+
+[data-theme="light"] .nowcast__headline .accent { color: var(--blue); }
+
+.nowcast__bars {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  align-items: end;
+  gap: 0.35rem;
+  height: 92px;
+  margin-top: 1rem;
+}
+
+.nbar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  height: 100%;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel-hi) 55%, transparent);
+  overflow: hidden;
+}
+
+@supports not (background: color-mix(in srgb, red 50%, blue)) {
+  .nbar { background: var(--panel-hi); }
+}
+
+.nbar__fill {
+  width: 100%;
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, var(--neon), var(--sky) 60%, var(--blue));
+  box-shadow: 0 0 12px rgba(0, 229, 255, 0.35);
+  transition: height 0.5s var(--ease);
+}
+
+.nbar__fill--dry {
+  background: var(--line);
+  box-shadow: none;
+}
+
+.nbar__label {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  padding-bottom: 0.1rem;
+  text-align: center;
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: var(--dim);
+  letter-spacing: 0.02em;
+}
+
+.nowcast__meta {
+  margin-top: 0.6rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* ==========================================================================
+   21. Settings panel
+   ========================================================================== */
+.settings {
+  border-top: 1px solid var(--line-soft);
+  background: var(--panel-solid);
+  box-shadow: var(--shadow);
+  animation: pop 0.16s var(--ease);
+}
+
+.settings__inner {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 1.6rem;
+  padding: 1.4rem 0 1.6rem;
+}
+
+.settings__title {
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.settings__text {
+  font-size: 0.86rem;
+  color: var(--muted);
+  text-wrap: pretty;
+}
+
+.settings__sources {
+  margin-top: 0.7rem;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.settings__sources strong {
+  color: var(--text);
+}
+
+.settings__label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.45rem;
+}
+
+.settings__label span {
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--dim);
+}
+
+.settings__row {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.settings__input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 44px;
+  padding: 0 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel-hi);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 0.84rem;
+}
+
+.settings__input:focus {
+  outline: none;
+  border-color: var(--sky);
+  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+.btn--sm {
+  height: 44px;
+  padding: 0 1rem;
+  font-size: 0.86rem;
+  border-radius: 11px;
+  flex: 0 0 auto;
+}
+
+.settings__hint {
+  margin-top: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+.settings__hint--ok { color: var(--green-2); }
+.settings__hint--bad { color: #fca5a5; }
+
+[data-theme="light"] .settings__hint--bad { color: #b91c1c; }
+
+.settings__warn {
+  margin-top: 0.55rem;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--dim);
+}
+
+@media (max-width: 860px) {
+  .settings__inner {
+    grid-template-columns: 1fr;
+    gap: 1.2rem;
+  }
+}
+
+@media (max-width: 620px) {
+  .nowcast__bars {
+    gap: 0.25rem;
+    height: 80px;
+  }
+
+  .nbar__label {
+    font-size: 0.54rem;
+  }
+
+  .settings__row {
+    flex-wrap: wrap;
+  }
+
+  .settings__input {
+    flex: 1 1 100%;
+  }
+}
