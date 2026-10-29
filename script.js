@@ -21,14 +21,19 @@
   const API = {
     geo: 'https://geocoding-api.open-meteo.com/v1/search',
     forecast: 'https://api.open-meteo.com/v1/forecast',
-    air: 'https://air-quality-api.open-meteo.com/v1/air-quality'
+    air: 'https://air-quality-api.open-meteo.com/v1/air-quality',
+    /* Independent national met service — used to cross-check the primary source. */
+    metno: 'https://api.met.no/weatherapi/locationforecast/2.0/compact',
+    /* Optional: needs the visitor's own Google Maps Platform key. */
+    google: 'https://weather.googleapis.com/v1/currentConditions:lookup'
   };
 
   const STORE = {
     theme: 'nimbus.theme',
     unit: 'nimbus.unit',
     saved: 'nimbus.saved',
-    last: 'nimbus.last'
+    last: 'nimbus.last',
+    googleKey: 'nimbus.googleKey'
   };
 
   const REFRESH_MS = 10 * 60 * 1000; // auto-refresh every 10 minutes
@@ -201,7 +206,9 @@
     airError: false,
     updatedAt: 0,
     busy: false,
-    lastAction: null
+    lastAction: null,
+    googleKey: readStore(STORE.googleKey, '') || '',
+    sources: { metNo: null, google: null, googleError: '' }
   };
 
   /* unit conversion helpers ------------------------------------------------- */
@@ -306,7 +313,10 @@
       ].join(','),
       timezone: 'auto',
       forecast_days: '7',
-      wind_speed_unit: 'kmh'
+      wind_speed_unit: 'kmh',
+      /* 15-minute resolution for the short-range rain nowcast */
+      minutely_15: ['precipitation', 'precipitation_probability', 'weather_code'].join(','),
+      forecast_minutely_15: '8'
     });
     return API.forecast + '?' + params.toString();
   }
@@ -319,6 +329,74 @@
       timezone: 'auto'
     });
     return API.air + '?' + params.toString();
+  }
+
+  /* --- MET Norway (yr.no) — independent second opinion, no key ------------- */
+  async function fetchMetNo(lat, lon) {
+    const url =
+      API.metno + '?lat=' + Number(lat).toFixed(4) + '&lon=' + Number(lon).toFixed(4);
+    const data = await getJSON(url, 12000);
+    const series = data && data.properties && data.properties.timeseries;
+    if (!Array.isArray(series) || !series.length) {
+      throw new Error('MET Norway returned no timeseries');
+    }
+
+    /* Pick the hourly step nearest to right now. */
+    const now = Date.now();
+    let best = series[0];
+    let bestGap = Infinity;
+    series.forEach(function (entry) {
+      const at = Date.parse(entry.time);
+      if (isNaN(at)) return;
+      const gap = Math.abs(at - now);
+      if (gap < bestGap) {
+        bestGap = gap;
+        best = entry;
+      }
+    });
+
+    const det = (best.data && best.data.instant && best.data.instant.details) || {};
+    const next1 = (best.data && best.data.next_1_hours) || {};
+    return {
+      tempC: typeof det.air_temperature === 'number' ? det.air_temperature : null,
+      humidity: typeof det.relative_humidity === 'number' ? det.relative_humidity : null,
+      pressure: typeof det.air_pressure_at_sea_level === 'number' ? det.air_pressure_at_sea_level : null,
+      windMs: typeof det.wind_speed === 'number' ? det.wind_speed : null,
+      symbol: (next1.summary && next1.summary.symbol_code) || '',
+      issued: (data.properties.meta && data.properties.meta.updated_at) || '',
+      time: best.time
+    };
+  }
+
+  /* --- Google Weather API — only when the visitor supplies a key ----------- */
+  function buildGoogleUrl(lat, lon, key) {
+    return (
+      API.google +
+      '?key=' + encodeURIComponent(key) +
+      '&location.latitude=' + Number(lat).toFixed(4) +
+      '&location.longitude=' + Number(lon).toFixed(4)
+    );
+  }
+
+  async function fetchGoogle(lat, lon, key) {
+    const data = await getJSON(buildGoogleUrl(lat, lon, key), 12000);
+    const tempObj = data.temperature || data.currentTemperature || {};
+    const degrees =
+      typeof tempObj.degrees === 'number'
+        ? tempObj.degrees
+        : typeof tempObj.value === 'number'
+          ? tempObj.value
+          : null;
+    const condition =
+      (data.weatherCondition &&
+        data.weatherCondition.description &&
+        data.weatherCondition.description.text) || '';
+    return {
+      tempC: degrees,
+      humidity: typeof data.relativeHumidity === 'number' ? data.relativeHumidity : null,
+      condition: condition,
+      isDay: typeof data.isDaytime === 'boolean' ? data.isDaytime : null
+    };
   }
 
   /* ==========================================================================
@@ -914,11 +992,166 @@
   }
 
   /* ==========================================================================
+     15b. Rendering — live source cross-check
+     ========================================================================== */
+
+  function renderSources() {
+    const strip = $('sourcesStrip');
+    if (!strip) return;
+
+    const primary = state.forecast ? state.forecast.current.temperature_2m : null;
+    const parts = [];
+
+    function chip(name, value, note, cls) {
+      return (
+        '<span class="source source--' + cls + '">' +
+          '<span class="source__dot" aria-hidden="true"></span>' +
+          '<span class="source__name">' + esc(name) + '</span>' +
+          '<span class="source__value">' + esc(value) + '</span>' +
+          (note ? '<span class="source__delta">' + esc(note) + '</span>' : '') +
+        '</span>'
+      );
+    }
+
+    function agreement(reading) {
+      if (typeof primary !== 'number' || typeof reading !== 'number') return '';
+      const diff = reading - primary;
+      if (Math.abs(diff) < 0.15) return 'agrees';
+      return (diff > 0 ? '+' : '') + diff.toFixed(1) + '°';
+    }
+
+    function within(reading) {
+      return typeof primary !== 'number' || typeof reading !== 'number'
+        ? 'ok'
+        : Math.abs(reading - primary) <= 1.5
+          ? 'ok'
+          : 'warn';
+    }
+
+    parts.push(
+      typeof primary === 'number'
+        ? chip('Open-Meteo', t(primary) + '°', 'primary', 'ok')
+        : chip('Open-Meteo', 'no reading', '', 'off')
+    );
+
+    const met = state.sources.metNo;
+    if (met && typeof met.tempC === 'number') {
+      parts.push(chip('MET Norway', t(met.tempC) + '°', agreement(met.tempC), within(met.tempC)));
+    } else {
+      parts.push(chip('MET Norway', 'unreachable', '', 'off'));
+    }
+
+    const g = state.sources.google;
+    if (!state.googleKey) {
+      parts.push(chip('Google Weather', 'add key in settings', '', 'muted'));
+    } else if (g && typeof g.tempC === 'number') {
+      parts.push(chip('Google', t(g.tempC) + '°', agreement(g.tempC), within(g.tempC)));
+    } else {
+      parts.push(chip('Google', state.sources.googleError ? 'key rejected' : 'no reading', '', 'off'));
+    }
+
+    strip.innerHTML = parts.join('');
+  }
+
+  /* ==========================================================================
+     15c. Rendering — 15-minute rain nowcast
+     ========================================================================== */
+
+  function renderNowcast() {
+    const card = $('nowcastCard');
+    if (!card) return;
+
+    const m = state.forecast ? state.forecast.minutely_15 : null;
+    if (!m || !Array.isArray(m.time) || !m.time.length) {
+      card.hidden = true;
+      return;
+    }
+    card.hidden = false;
+
+    const precip = m.precipitation || [];
+    const prob = m.precipitation_probability || [];
+    const n = m.time.length;
+    const maxP = Math.max.apply(null, precip.concat([0.15]));
+
+    function wet(i) {
+      const amount = typeof precip[i] === 'number' ? precip[i] : 0;
+      const chance = typeof prob[i] === 'number' ? prob[i] : 0;
+      return amount > 0.02 || chance >= 60;
+    }
+
+    let headline = '';
+    let accent = false;
+
+    if (wet(0)) {
+      let stopAt = -1;
+      for (let i = 1; i < n; i++) {
+        if (!wet(i)) {
+          stopAt = i;
+          break;
+        }
+      }
+      headline = stopAt === -1
+        ? 'Rain continuing for at least the next 2 hours.'
+        : 'Rain easing in about ' + stopAt * 15 + ' min.';
+      accent = true;
+    } else {
+      let startAt = -1;
+      for (let i = 0; i < n; i++) {
+        if (wet(i)) {
+          startAt = i;
+          break;
+        }
+      }
+      if (startAt === -1) {
+        headline = 'No rain expected in the next 2 hours.';
+      } else if (startAt === 1) {
+        headline = 'Rain likely within 15 min.';
+        accent = true;
+      } else {
+        headline = 'Rain likely in about ' + startAt * 15 + ' min.';
+        accent = true;
+      }
+    }
+
+    $('nowcastHeadline').innerHTML = accent
+      ? '<span class="accent">' + esc(headline) + '</span>'
+      : esc(headline);
+
+    let bars = '';
+    for (let i = 0; i < n; i++) {
+      const amount = typeof precip[i] === 'number' ? precip[i] : 0;
+      const height = amount <= 0.02 ? 6 : Math.max(12, (amount / maxP) * 100);
+      const label = String(m.time[i]).slice(11, 16);
+      bars +=
+        '<div class="nbar">' +
+          '<span class="nbar__fill' + (amount <= 0.02 ? ' nbar__fill--dry' : '') +
+            '" style="height:' + height.toFixed(0) + '%"></span>' +
+          '<span class="nbar__label">' + esc(label) + '</span>' +
+        '</div>';
+    }
+    $('nowcastBars').innerHTML = bars;
+
+    const totalMm = precip.reduce(function (sum, v) {
+      return sum + (typeof v === 'number' ? v : 0);
+    }, 0);
+    const peakProb = prob.length ? Math.max.apply(null, prob) : null;
+
+    $('nowcastMeta').textContent =
+      'Total ' + totalMm.toFixed(1) + ' mm expected' +
+      (peakProb !== null && isFinite(peakProb)
+        ? ' · peak chance ' + Math.round(peakProb) + '%'
+        : '') +
+      ' · 15-minute resolution';
+  }
+
+  /* ==========================================================================
      16. Render everything
      ========================================================================== */
 
   function renderAll() {
     renderCurrent();
+    renderSources();
+    renderNowcast();
     renderAir();
     renderSun();
     renderHourly();
@@ -960,14 +1193,42 @@
       state.updatedAt = Date.now();
       state.airError = false;
 
-      /* Air quality is a separate service — never let it break the page. */
-      try {
-        const air = await getJSON(buildAirUrl(place.latitude, place.longitude), 12000);
-        state.air = air && air.current ? air : null;
-        state.airError = !state.air;
-      } catch (airErr) {
-        state.air = null;
-        state.airError = true;
+      /* Secondary sources — each may fail on its own without breaking the page. */
+      const airTask = getJSON(buildAirUrl(place.latitude, place.longitude), 12000)
+        .then(function (air) {
+          return air && air.current ? air : null;
+        })
+        .catch(function () {
+          return null;
+        });
+
+      const metTask = fetchMetNo(place.latitude, place.longitude).catch(function () {
+        return null;
+      });
+
+      const googleTask = state.googleKey
+        ? fetchGoogle(place.latitude, place.longitude, state.googleKey).catch(function (e) {
+            return { error: (e && e.message) || 'Google request failed' };
+          })
+        : Promise.resolve(null);
+
+      const secondary = await Promise.all([airTask, metTask, googleTask]);
+
+      state.air = secondary[0];
+      state.airError = !state.air;
+      state.sources.metNo = secondary[1];
+
+      const googleResult = secondary[2];
+      state.sources.google = googleResult && !googleResult.error ? googleResult : null;
+      state.sources.googleError = googleResult && googleResult.error ? googleResult.error : '';
+
+      if (state.googleKey) {
+        setGoogleStatus(
+          state.sources.google
+            ? 'Connected — Google is confirming this reading.'
+            : 'Google returned no reading: ' + (state.sources.googleError || 'unknown error'),
+          state.sources.google ? 'ok' : 'bad'
+        );
       }
 
       renderAll();
@@ -1224,6 +1485,22 @@
     );
   }
 
+  function setGoogleStatus(message, kind) {
+    const el = $('googleKeyStatus');
+    if (!el) return;
+    el.textContent = message;
+    el.className = 'settings__hint' + (kind ? ' settings__hint--' + kind : '');
+  }
+
+  function initGoogle() {
+    if (state.googleKey) {
+      $('googleKeyInput').value = state.googleKey;
+      setGoogleStatus('Key saved in this browser. Google will be used as a cross-check.');
+    } else {
+      setGoogleStatus('Not configured — the app works fully without it.');
+    }
+  }
+
   /* ==========================================================================
      21. Events
      ========================================================================== */
@@ -1319,6 +1596,41 @@
       if (place) loadPlace(place);
     });
 
+    /* settings panel + optional Google key */
+    $('settingsBtn').addEventListener('click', function () {
+      const panel = $('settingsPanel');
+      const opening = panel.hidden;
+      panel.hidden = !opening;
+      $('settingsBtn').setAttribute('aria-expanded', opening ? 'true' : 'false');
+      if (opening) $('googleKeyInput').focus();
+    });
+
+    $('googleKeySave').addEventListener('click', function () {
+      const key = $('googleKeyInput').value.trim();
+      if (!key) {
+        setGoogleStatus('Paste a key first.', 'bad');
+        return;
+      }
+      state.googleKey = key;
+      writeStore(STORE.googleKey, key);
+      setGoogleStatus('Key saved in this browser. Testing it against Google now…');
+      if (state.place) loadPlace(state.place);
+    });
+
+    $('googleKeyClear').addEventListener('click', function () {
+      state.googleKey = '';
+      state.sources.google = null;
+      state.sources.googleError = '';
+      try {
+        localStorage.removeItem(STORE.googleKey);
+      } catch (e) {
+        /* ignore */
+      }
+      $('googleKeyInput').value = '';
+      setGoogleStatus('Not configured — the app works fully without it.');
+      if (state.forecast) renderSources();
+    });
+
     /* theme + unit */
     $('themeToggle').addEventListener('click', function () {
       const next = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
@@ -1351,6 +1663,7 @@
   function boot() {
     initTheme();
     applyUnitUi();
+    initGoogle();
     bindEvents();
     renderSaved();
 
