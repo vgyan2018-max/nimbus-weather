@@ -32,6 +32,15 @@ Three files, ~93 KB total, zero requests to any third-party script or font host.
   UV index max, rain today, current precipitation
 - Sun & UV card: sunrise, sunset, day length, and a live semicircular sun arc
 
+**Real-time rain nowcast**
+- 15-minute resolution for the next 2 hours, with a plain-language headline
+  ("Rain likely in about 30 min", "Rain easing in about 15 min") and a bar chart
+
+**Multi-source verification**
+- A live strip under the current temperature shows what each independent provider reports
+  and how far apart they are (e.g. `MET Norway 26° +0.4°`), so you can see the reading is real
+  and consistent rather than trusting one feed
+
 **Air quality**
 - US AQI with category colour and plain-language health advice
 - Colour-gradient AQI scale with a needle marker
@@ -53,14 +62,38 @@ Three files, ~93 KB total, zero requests to any third-party script or font host.
 
 ## The APIs
 
-| Purpose | Endpoint | Key needed |
-|---------|----------|------------|
-| City search | `https://geocoding-api.open-meteo.com/v1/search` | No |
-| Forecast | `https://api.open-meteo.com/v1/forecast` | No |
-| Air quality | `https://air-quality-api.open-meteo.com/v1/air-quality` | No |
+| Purpose | Provider | Endpoint | Key needed |
+|---------|----------|----------|------------|
+| City search | Open-Meteo | `https://geocoding-api.open-meteo.com/v1/search` | No |
+| Forecast + 15-min nowcast | Open-Meteo | `https://api.open-meteo.com/v1/forecast` | No |
+| Air quality | Open-Meteo | `https://air-quality-api.open-meteo.com/v1/air-quality` | No |
+| Cross-check | MET Norway (Norwegian Meteorological Institute) | `https://api.met.no/weatherapi/locationforecast/2.0/compact` | No |
+| Optional cross-check | Google Weather API | `https://weather.googleapis.com/v1/currentConditions:lookup` | **Yes** |
 
-All three are free for non-commercial use and need no sign-up. Please check Open-Meteo's
-terms if you expect heavy traffic.
+All calls happen directly from the visitor's browser — there is no backend of your own.
+Please check each provider's terms if you expect heavy traffic.
+
+**Why Open-Meteo as the primary source?** It is free, needs no key, and blends several
+national agency models (ECMWF, NOAA GFS, DWD ICON) rather than a single forecast. MET Norway
+then provides an independent second opinion from a national meteorological service, which is
+what the cross-check strip compares against.
+
+### Adding Google Weather (optional)
+
+The app is complete without Google. If you want Google's own reading in the cross-check:
+
+1. In [Google Cloud Console](https://console.cloud.google.com/) create (or pick) a project and
+   **enable billing** — Maps Platform requires it.
+2. Enable the **Weather API** in *APIs & Services → Library*.
+3. Create an API key in *APIs & Services → Credentials*.
+4. Restrict the key: under *Application restrictions* choose **Websites (HTTP referrers)** and add
+   your site, e.g. `https://<your-username>.github.io/nimbus-weather/*` and `http://localhost:8000/*`.
+   Under *API restrictions*, allow only the **Weather API**.
+5. Open the site, click the gear icon in the header, paste the key, and press **Save**.
+
+The key is stored only in that browser's `localStorage` and is sent only to Google. Because it
+is used client-side, anyone who inspects the browser can read it — the referrer restriction above
+is what keeps it safe, so never skip step 4. Google Weather is a paid API; check current pricing.
 
 ---
 
