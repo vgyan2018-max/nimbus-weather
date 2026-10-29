@@ -48,6 +48,13 @@
     </a>
 
     <div class="topbar__actions">
+      <button class="icon-btn" id="settingsBtn" type="button" aria-label="Data sources and settings" aria-expanded="false" aria-controls="settingsPanel">
+        <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.9"
+             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="3.1" />
+          <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9v.09a1.7 1.7 0 0 0 1.56 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1Z" />
+        </svg>
+      </button>
       <button class="pill-btn" id="unitToggle" type="button" aria-label="Switch temperature unit to Fahrenheit">
         <span id="unitLabel">°C</span>
       </button>
@@ -62,6 +69,41 @@
           <path d="M20.5 13.4A8.6 8.6 0 1 1 10.6 3.5a6.9 6.9 0 0 0 9.9 9.9Z" />
         </svg>
       </button>
+    </div>
+  </div>
+
+  <!-- Settings / data sources -->
+  <div class="settings" id="settingsPanel" hidden>
+    <div class="wrap settings__inner">
+      <div class="settings__block">
+        <h2 class="settings__title">Where this data comes from</h2>
+        <p class="settings__text">
+          Every figure on this page is fetched live in your browser. Nimbus cross-checks two
+          independent providers so you can see they agree, and can add Google's own Weather API
+          if you have a key.
+        </p>
+        <ul class="settings__sources">
+          <li><strong>Open-Meteo</strong> — primary source. Blends ECMWF, NOAA GFS and DWD ICON models. No key.</li>
+          <li><strong>MET Norway</strong> — independent national met service (yr.no). No key.</li>
+          <li><strong>Google Weather API</strong> — optional, needs your own key (below).</li>
+        </ul>
+      </div>
+
+      <div class="settings__block">
+        <label class="settings__label" for="googleKeyInput">Google Weather API key <span>(optional)</span></label>
+        <div class="settings__row">
+          <input class="settings__input" id="googleKeyInput" type="password" autocomplete="off"
+                 spellcheck="false" placeholder="Paste an API key from Google Maps Platform" />
+          <button class="btn btn--primary btn--sm" id="googleKeySave" type="button">Save</button>
+          <button class="btn btn--ghost btn--sm" id="googleKeyClear" type="button">Clear</button>
+        </div>
+        <p class="settings__hint" id="googleKeyStatus">Not configured — the app works fully without it.</p>
+        <p class="settings__warn">
+          The key is stored only in this browser. Because it is used client-side, restrict it in
+          Google Cloud to your own website's address (HTTP referrer) and enable only the Weather API.
+          Google Weather requires a billing-enabled Maps Platform project and may incur charges.
+        </p>
+      </div>
     </div>
   </div>
 </header>
@@ -194,6 +236,20 @@
           <span class="quickstat__value" id="qAqi">—</span>
         </li>
       </ul>
+
+      <!-- Live cross-check between independent providers -->
+      <div class="sources" id="sourcesStrip" aria-label="Live data sources"></div>
+    </section>
+
+    <!-- 15-minute rain nowcast -->
+    <section class="card nowcast" id="nowcastCard" aria-labelledby="nowcastHeading">
+      <header class="card__head">
+        <h3 class="card__title" id="nowcastHeading">Next 2 hours</h3>
+        <span class="badge badge--soft" id="nowcastBadge">15-min nowcast</span>
+      </header>
+      <p class="nowcast__headline" id="nowcastHeadline">—</p>
+      <div class="nowcast__bars" id="nowcastBars" aria-hidden="true"></div>
+      <p class="nowcast__meta" id="nowcastMeta"></p>
     </section>
 
     <!-- Air quality + Sun -->
@@ -305,6 +361,11 @@
   </div>
 </footer>
 
+<noscript>
+  <div class="wrap" style="padding:1.5rem 0;text-align:center;color:#93a9c8">
+    Nimbus needs JavaScript to fetch live weather. Please enable it and reload the page.
+  </div>
+</noscript>
 <script src="script.js" defer></script>
 </body>
 </html>
